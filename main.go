@@ -43,9 +43,10 @@ func getPage(page int) {
 
 	searchCards.Each(func(i int, s *goquery.Selection) {
 		id, _ := s.Attr("data-jk")
-		fmt.Println(id)
 		title := s.Find(".title>a").Text()
-		fmt.Println(title)
+		location := s.Find(".sjcl>span").Text()
+		salary := s.Find(".salarySnippet>span>span").Text()
+		summary := s.Find(".summary").Text()
 	})
 
 }
