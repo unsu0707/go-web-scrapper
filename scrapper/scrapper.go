@@ -1,4 +1,4 @@
-package main
+package scrapper
 
 import (
 	"encoding/csv"
@@ -20,15 +20,15 @@ type extractedJob struct {
 	summary  string
 }
 
-var baseURL string = "https://jp.indeed.com/jobs?q=python&limit=50"
-
-func main() {
+// Scrape Indeed by term
+func Scrape(term string) {
+	var baseURL string = "https://jp.indeed.com/jobs?q=" + term + "&limit=50"
 	var jobs []extractedJob
 	c := make(chan []extractedJob)
-	totalPages := getPages()
+	totalPages := getPages(baseURL)
 
 	for i := 0; i < totalPages; i++ {
-		go getJobsFromPage(i, c)
+		go getJobsFromPage(i, baseURL, c)
 	}
 	for i := 0; i < totalPages; i++ {
 		jobsFromPage := <-c
@@ -57,10 +57,10 @@ func writeJobs(jobs []extractedJob) {
 	}
 }
 
-func getJobsFromPage(page int, mainC chan<- []extractedJob) {
+func getJobsFromPage(page int, url string, mainC chan<- []extractedJob) {
 	var jobs []extractedJob
 	c := make(chan extractedJob)
-	pageURL := baseURL + "&start=" + strconv.Itoa(page*50)
+	pageURL := url + "&start=" + strconv.Itoa(page*50)
 	fmt.Println("Requesting ", pageURL)
 	res, err := http.Get(pageURL)
 	checkErr(err)
@@ -71,7 +71,7 @@ func getJobsFromPage(page int, mainC chan<- []extractedJob) {
 	doc, err := goquery.NewDocumentFromReader(res.Body)
 	checkErr(err)
 
-	searchCards := doc.Find(".jobsearch-SerpJobCard")
+	searchCards := doc.Find("[id^=\"job_\"]")
 
 	searchCards.Each(func(i int, card *goquery.Selection) {
 		go extractJob(card, c)
@@ -87,10 +87,10 @@ func getJobsFromPage(page int, mainC chan<- []extractedJob) {
 
 func extractJob(card *goquery.Selection, c chan<- extractedJob) {
 	id, _ := card.Attr("data-jk")
-	title := cleanString(card.Find(".jobtitle").Text())
-	location := cleanString(card.Find(".sjcl").Text())
-	salary := cleanString(card.Find(".salaryText").Text())
-	summary := cleanString(card.Find(".summary").Text())
+	title := cleanString(card.Find(".jobTitle").Text())
+	location := cleanString(card.Find(".companyLocation").Text())
+	salary := cleanString(card.Find(".salary-snippet-container").Text())
+	summary := cleanString(card.Find(".job-snippet").Text())
 	c <- extractedJob{
 		id:       id,
 		title:    title,
@@ -103,9 +103,9 @@ func cleanString(str string) string {
 	return strings.Join(strings.Fields(strings.TrimSpace(str)), " ")
 }
 
-func getPages() int {
+func getPages(url string) int {
 	pages := 0
-	res, err := http.Get(baseURL)
+	res, err := http.Get(url)
 	checkErr(err)
 	checkCode(res)
 
